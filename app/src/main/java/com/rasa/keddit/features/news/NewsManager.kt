@@ -1,14 +1,19 @@
 package com.rasa.keddit.features.news
 
-import com.rasa.keddit.api.RestAPI
+import com.rasa.keddit.api.NewsAPI
+import com.rasa.keddit.api.NewsRestAPI
 import com.rasa.keddit.commons.RedditNews
 import com.rasa.keddit.commons.RedditNewsItem
 import rx.Observable
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Created by cosmi on 19-Nov-17.
  */
-class NewsManager(private val api: RestAPI = RestAPI()) {
+
+@Singleton
+class NewsManager @Inject constructor(private val api: NewsAPI) {
     fun getNews(after: String, limit: String = "10"): Observable<RedditNews> {
         return Observable.create { subscriber ->
             val callResponse = api.getNews(after, limit)

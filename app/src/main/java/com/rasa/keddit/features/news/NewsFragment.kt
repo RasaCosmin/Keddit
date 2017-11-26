@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import com.rasa.keddit.KedditApp
 import com.rasa.keddit.R
 import com.rasa.keddit.commons.InfiniteScrollListener
 import com.rasa.keddit.commons.RedditNews
@@ -20,21 +21,29 @@ import kotlinx.android.synthetic.main.news_fragment.*;
 import rx.android.schedulers.AndroidSchedulers
 import rx.schedulers.Schedulers
 import rx.subscriptions.CompositeSubscription
+import javax.inject.Inject
 
 /**
  * Created by cosmi on 18-Nov-17.
  */
 class NewsFragment : RxBaseFragment() {
 
+    companion object {
+        private val KEY_REDDIT_NEWS = "redditNews"
+    }
+
     private val newsList by lazy {
         news_list
     }
 
-    private val newsManager by lazy {
-        NewsManager()
-    }
+    @Inject lateinit var newsManager : NewsManager
 
     private var redditNews: RedditNews? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        KedditApp.newsComponent.inject(this)
+    }
 
     override fun onCreateView(inflater: LayoutInflater?, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         return container?.inflate(R.layout.news_fragment)
@@ -43,24 +52,36 @@ class NewsFragment : RxBaseFragment() {
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
 
-        newsList?.setHasFixedSize(true)
-        val linearLayout = LinearLayoutManager(context)
-        newsList?.layoutManager = linearLayout
-        newsList.clearOnScrollListeners()
-        newsList?.addOnScrollListener(
-                InfiniteScrollListener({requestNews()}, linearLayout)
-        )
+        newsList.apply {
+            setHasFixedSize(true)
+            val linearLayout = LinearLayoutManager(context)
+            layoutManager = linearLayout
+            clearOnScrollListeners()
+            addOnScrollListener(
+                    InfiniteScrollListener({ requestNews() }, linearLayout)
+            )
+        }
 
         initAdapter()
 
-        if (savedInstanceState == null) {
+        if (savedInstanceState != null && savedInstanceState.containsKey(KEY_REDDIT_NEWS)) {
+            redditNews = savedInstanceState.get(KEY_REDDIT_NEWS) as RedditNews
+            (newsList.adapter as NewsAdapter).clearAndAddNewus(redditNews!!.news)
+        } else {
             requestNews()
+        }
+    }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        val news = (newsList.adapter as NewsAdapter).getNews()
+        if(redditNews != null && news.isNotEmpty()){
+            outState.putParcelable(KEY_REDDIT_NEWS, redditNews?.copy(news = news))
         }
     }
 
     private fun requestNews() {
-        val subscription = newsManager.getNews(redditNews?.after?:"")
+        val subscription = newsManager.getNews(redditNews?.after ?: "")
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(
@@ -69,7 +90,7 @@ class NewsFragment : RxBaseFragment() {
                             (newsList.adapter as NewsAdapter).addNews(retrievedNews.news)
                         },
                         { e ->
-                            Snackbar.make(newsList,e.message?:"eroare", Snackbar.LENGTH_SHORT).show()
+                            Snackbar.make(newsList, e.message ?: "eroare", Snackbar.LENGTH_SHORT).show()
                         }
                 )
         subscriptions.add(subscription)
